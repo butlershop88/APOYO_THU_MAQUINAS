@@ -1,0 +1,40 @@
+<<<<<<< HEAD
+const CACHE_NAME = 'tareas-app-v39'; // Aumenta este número en cada actualización
+=======
+const CACHE_NAME = 'tareas-app-v43'; // Aumenta este número en cada actualización
+>>>>>>> d531b116fb1b3c079f02507808b288a83420c74a
+const urlsToCache = [
+    './',
+    './index.html',
+    './style.css',
+    './app.js?v=2',
+    './lib/chart.min.js',
+    './manifest.json',
+    './ICON_APP_APOYO.png'
+];
+
+self.addEventListener('install', event => {
+    event.waitUntil(
+        caches.open(CACHE_NAME)
+            .then(cache => cache.addAll(urlsToCache))
+    );
+    self.skipWaiting();
+});
+
+self.addEventListener('activate', event => {
+    event.waitUntil(
+        caches.keys().then(cacheNames => {
+            return Promise.all(
+                cacheNames.filter(cacheName => cacheName !== CACHE_NAME)
+                          .map(cacheName => caches.delete(cacheName))
+            );
+        })
+    );
+    return self.clients.claim();
+});
+
+self.addEventListener('fetch', event => {
+    event.respondWith(
+        fetch(event.request).catch(() => caches.match(event.request))
+    );
+});
