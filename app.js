@@ -490,103 +490,100 @@ function finalizarJornada() {
 
 // SETUP LISTENERS
 function setupListeners() {
-  console.log('Setting up listeners...');
-  
-  // Theme toggle
-  const themeBtn = document.getElementById('theme-toggle');
-  if (themeBtn) {
-    themeBtn.onclick = toggleTheme;
-    console.log('Theme button listener added');
-  }
-  
-  // Add puesto
-  const addBtn = document.getElementById('add-puesto-btn');
-  if (addBtn) {
-    addBtn.onclick = addPuesto;
-    console.log('Add puesto button listener added');
-  }
-  
-  // Enter on input
-  const input = document.getElementById('nuevo-puesto-input');
-  if (input) {
-    input.onkeypress = (e) => {
-      if (e.key === 'Enter') addPuesto();
-    };
-  }
-  
-  // Clear today
-  const clearBtn = document.getElementById('clear-today-btn');
-  if (clearBtn) clearBtn.onclick = clearToday;
-  
-  // Reset colors
-  const resetBtn = document.getElementById('reset-colors-btn');
-  if (resetBtn) resetBtn.onclick = resetColors;
-  
-  // Finalizar jornada
-  const finalizarBtn = document.getElementById('finalizar-jornada-btn');
-  if (finalizarBtn) finalizarBtn.onclick = finalizarJornada;
-  
-  // Cambio de vista
-  const modoToggle = document.querySelector('.modo-toggle');
-  if (modoToggle) {
-    modoToggle.onclick = (e) => {
-      if (e.target.tagName === 'BUTTON' && e.target.dataset.vista) {
-        cambiarVista(e.target.dataset.vista);
-      }
-    };
-  }
+  console.log('Setting up listeners using event delegation...');
 
-  // Listener para sub-pestañas de Historial
-  const histTabs = document.querySelector('.hist-tabs');
-  if (histTabs) {
-    histTabs.onclick = (e) => {
-      if (e.target.tagName === 'BUTTON' && e.target.dataset.sub) {
-        cambiarSubVistaHistorial(e.target.dataset.sub);
-      }
-    };
-  }
-  
-  // Filtros de horas
-  const horasFiltros = document.querySelector('.horas-filtros');
-  if (horasFiltros) {
-    horasFiltros.onclick = (e) => {
-      if (e.target.tagName === 'BUTTON' && e.target.dataset.rango) {
-        document.querySelectorAll('.horas-filtros button').forEach(b => b.classList.remove('active'));
-        e.target.classList.add('active');
-        renderDistribucionHoras(e.target.dataset.rango);
-      }
-    };
-  }
-  
-  // Filtros de gráficas
-  const graficasFiltros = document.querySelector('.filtros-graficas');
-  if (graficasFiltros) {
-    graficasFiltros.onclick = (e) => {
-      if (e.target.tagName === 'BUTTON' && e.target.dataset.periodo) {
-        document.querySelectorAll('.filtros-graficas button').forEach(b => b.classList.remove('active'));
-        e.target.classList.add('active');
-        renderGraficas(e.target.dataset.periodo);
-      }
-    };
-  }
-  
-  // Delegated events
-  document.body.onclick = (e) => {
+  document.body.addEventListener('click', (e) => {
     const target = e.target;
+
+    // Theme toggle
+    if (target.matches('#theme-toggle')) {
+      toggleTheme();
+      return;
+    }
     
+    // Add puesto
+    if (target.matches('#add-puesto-btn')) {
+      addPuesto();
+      return;
+    }
+
+    // Clear today
+    if (target.matches('#clear-today-btn')) {
+      clearToday();
+      return;
+    }
+
+    // Reset colors
+    if (target.matches('#reset-colors-btn')) {
+      resetColors();
+      return;
+    }
+
+    // Finalizar jornada
+    if (target.matches('#finalizar-jornada-btn')) {
+      finalizarJornada();
+      return;
+    }
+
+    // Cambio de vista
+    const vistaBtn = target.closest('[data-vista]');
+    if (vistaBtn && target.closest('.modo-toggle')) {
+      cambiarVista(vistaBtn.dataset.vista);
+      return;
+    }
+
+    // Sub-pestañas de Historial
+    const subVistaBtn = target.closest('[data-sub]');
+    if (subVistaBtn && target.closest('.hist-tabs')) {
+      cambiarSubVistaHistorial(subVistaBtn.dataset.sub);
+      return;
+    }
+
+    // Filtros de horas
+    const rangoBtn = target.closest('[data-rango]');
+    if (rangoBtn && target.closest('.horas-filtros')) {
+      document.querySelectorAll('.horas-filtros button').forEach(b => b.classList.remove('active'));
+      rangoBtn.classList.add('active');
+      renderDistribucionHoras(rangoBtn.dataset.rango);
+      return;
+    }
+
+    // Filtros de gráficas
+    const periodoBtn = target.closest('[data-periodo]');
+    if (periodoBtn && target.closest('.filtros-graficas')) {
+      document.querySelectorAll('.filtros-graficas button').forEach(b => b.classList.remove('active'));
+      periodoBtn.classList.add('active');
+      renderGraficas(periodoBtn.dataset.periodo);
+      return;
+    }
+
+    // Tareas dinámicas
     if (target.classList.contains('add-tarea-btn')) {
       addTarea(target.dataset.puesto, target.dataset.tarea);
+      return;
     }
     
     if (target.classList.contains('quitar-puesto-btn')) {
       quitarPuesto(target.dataset.puesto);
+      return;
     }
     
     if (target.classList.contains('eliminar-log-btn')) {
       eliminarLog(target.dataset.id);
+      return;
     }
-  };
-  
+  });
+
+  // Listener para la tecla Enter en el input
+  const input = document.getElementById('nuevo-puesto-input');
+  if (input) {
+    input.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        addPuesto();
+      }
+    });
+  }
+
   console.log('All listeners setup complete');
 }
 
