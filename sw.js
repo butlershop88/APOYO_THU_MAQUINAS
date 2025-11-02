@@ -1,5 +1,5 @@
 <<<<<<< HEAD
-const CACHE_NAME = 'tareas-app-v39'; // Aumenta este número en cada actualización
+const CACHE_NAME = 'tareas-app-v10'; // Aumenta este número en cada actualización
 =======
 const CACHE_NAME = 'tareas-app-v43'; // Aumenta este número en cada actualización
 >>>>>>> d531b116fb1b3c079f02507808b288a83420c74a
@@ -38,3 +38,4 @@ self.addEventListener('fetch', event => {
         fetch(event.request).catch(() => caches.match(event.request))
     );
 });
+
