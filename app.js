@@ -553,3 +553,132 @@ function finalizarJornada() {
   if (!saveToStorage('registroTareas', STATE.log)) return;
   
   const today = new Date();
+  STATE.jornadaActual = yyyyMmDd(today);
+  localStorage.setItem('jornadaActual', STATE.jornadaActual);
+  
+  renderAll();
+  showPopup('✓ Jornada finalizada correctamente');
+}
+
+// SETUP LISTENERS
+function setupListeners() {
+  const themeBtn = document.getElementById('theme-toggle');
+  if (themeBtn) themeBtn.onclick = toggleTheme;
+  
+  const addBtn = document.getElementById('add-puesto-btn');
+  if (addBtn) addBtn.onclick = addPuesto;
+  
+  const input = document.getElementById('nuevo-puesto-input');
+  if (input) {
+    input.onkeypress = (e) => {
+      if (e.key === 'Enter') addPuesto();
+    };
+  }
+  
+  const clearBtn = document.getElementById('clear-today-btn');
+  if (clearBtn) clearBtn.onclick = clearToday;
+  
+  const resetBtn = document.getElementById('reset-colors-btn');
+  if (resetBtn) resetBtn.onclick = resetColors;
+  
+  const finalizarBtn = document.getElementById('finalizar-jornada-btn');
+  if (finalizarBtn) finalizarBtn.onclick = finalizarJornada;
+  
+  const modoToggle = document.querySelector('.modo-toggle');
+  if (modoToggle) {
+    modoToggle.onclick = (e) => {
+      if (e.target.tagName === 'BUTTON' && e.target.dataset.vista) {
+        cambiarVista(e.target.dataset.vista);
+      }
+    };
+  }
+
+  const histTabs = document.querySelector('.hist-tabs');
+  if (histTabs) {
+    histTabs.onclick = (e) => {
+      if (e.target.tagName === 'BUTTON' && e.target.dataset.sub) {
+        cambiarSubVistaHistorial(e.target.dataset.sub);
+      }
+    };
+  }
+  
+  const horasFiltros = document.querySelector('.horas-filtros');
+  if (horasFiltros) {
+    horasFiltros.onclick = (e) => {
+      if (e.target.tagName === 'BUTTON' && e.target.dataset.rango) {
+        document.querySelectorAll('.horas-filtros button').forEach(b => b.classList.remove('active'));
+        e.target.classList.add('active');
+        renderDistribucionHoras(e.target.dataset.rango);
+      }
+    };
+  }
+  
+  const graficasFiltros = document.querySelector('.filtros-graficas');
+  if (graficasFiltros) {
+    graficasFiltros.onclick = (e) => {
+      if (e.target.tagName === 'BUTTON' && e.target.dataset.periodo) {
+        document.querySelectorAll('.filtros-graficas button').forEach(b => b.classList.remove('active'));
+        e.target.classList.add('active');
+        renderGraficas(e.target.dataset.periodo);
+      }
+    };
+  }
+  
+  document.body.onclick = (e) => {
+    const target = e.target;
+    
+    if (target.classList.contains('add-tarea-btn')) {
+      addTarea(target.dataset.puesto, target.dataset.tarea);
+    }
+    
+    if (target.classList.contains('quitar-puesto-btn')) {
+      quitarPuesto(target.dataset.puesto);
+    }
+    
+    if (target.classList.contains('eliminar-log-btn')) {
+      eliminarLog(target.dataset.id);
+    }
+  };
+}
+
+// INIT
+function init() {
+  try {
+    console.log('Initializing app...');
+    
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme === 'dark-mode') {
+      document.body.classList.add('dark-mode');
+      const btn = document.getElementById('theme-toggle');
+      if (btn) btn.textContent = '☀️';
+    }
+    
+    const jornadaInput = document.getElementById('jornada-minutos-input');
+    if (jornadaInput) {
+      jornadaInput.value = CONFIG.JORNADA_MINUTOS;
+      const display = document.getElementById('jornada-horas-display');
+      if (display) {
+        const h = Math.floor(CONFIG.JORNADA_MINUTOS / 60);
+        const m = CONFIG.JORNADA_MINUTOS % 60;
+        display.textContent = `(${h}h ${m}m)`;
+      }
+    }
+    
+    renderAll();
+    setupListeners();
+    
+
+
+    console.log('=== APP INITIALIZED ===');
+  } catch (e) {
+    console.error('Error crítico inicializando:', e);
+    alert('Error iniciando la aplicación. Recarga la página.');
+  }
+}
+
+// EJECUTAR
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
