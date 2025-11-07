@@ -1,6 +1,6 @@
 {
   "name": "THUprod",
-  "short_name": "THUprod", 
+  "short_name": "THUprod_Apoyo", 
   "description": "Aplicación mejorada para registrar tareas por puestos",
   "start_url": "./index.html?v=3",
   "display": "standalone",
