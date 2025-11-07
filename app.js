@@ -20,42 +20,70 @@ const CONFIG = {
     '15': '#6CFF6C',
   },
   paletaSecundaria: ['#FFA500', '#FF69B4', '#FFFFFF', '#9370DB', '#87CEEB', '#7FFFD4', '#FFB366'],
-  JORNADA_MINUTOS: parseInt(localStorage.getItem('jornadaMinutos') || '465'),
+  JORNADA_MINUTOS: 465,
 };
+
+// UTILIDADES DE ALMACENAMIENTO
+function loadFromStorage(key, defaultValue) {
+  try {
+    const item = localStorage.getItem(key);
+    return item ? JSON.parse(item) : defaultValue;
+  } catch (e) {
+    console.error(`Error cargando ${key}:`, e);
+    showPopup(`⚠️ Error cargando ${key}`, 'error');
+    return defaultValue;
+  }
+}
+
+function saveToStorage(key, data) {
+  try {
+    localStorage.setItem(key, JSON.stringify(data));
+    return true;
+  } catch (e) {
+    console.error(`Error guardando ${key}:`, e);
+    if (e.name === 'QuotaExceededError') {
+      showPopup('⚠️ Almacenamiento lleno. Libera espacio.', 'error');
+    } else {
+      showPopup(`⚠️ Error guardando datos`, 'error');
+    }
+    return false;
+  }
+}
 
 // ESTADO
 const STATE = {
-  puestos: JSON.parse(localStorage.getItem('puestos') || '[]'),
-  log: JSON.parse(localStorage.getItem('registroTareas') || '[]'),
-  colorPuestos: JSON.parse(localStorage.getItem('colorPuestos') || '{}'),
+  puestos: loadFromStorage('puestos', []),
+  log: loadFromStorage('registroTareas', []),
+  colorPuestos: loadFromStorage('colorPuestos', {}),
   chartInstance: null,
   jornadaActual: localStorage.getItem('jornadaActual') || getJornadaLogica(),
   vistaActual: 'actual',
 };
 
+// Cargar JORNADA_MINUTOS con fallback
+try {
+  const saved = localStorage.getItem('jornadaMinutos');
+  if (saved) CONFIG.JORNADA_MINUTOS = parseInt(saved) || 465;
+} catch (e) {
+  console.error('Error cargando jornadaMinutos:', e);
+}
+
 function getJornadaLogica() {
   const today = new Date();
   const day = String(today.getDate()).padStart(2, '0');
-  const month = String(today.getMonth() + 1).padStart(2, '0'); // Months are 0-indexed
+  const month = String(today.getMonth() + 1).padStart(2, '0');
   const year = today.getFullYear();
   return `${day}-${month}-${year}`;
 }
 
-// GUARDADO
-function save(key, data) {
-  try {
-    localStorage.setItem(key, JSON.stringify(data));
-  } catch (e) {
-    console.error('Error guardando', key, e);
-  }
-}
-
 // UTILIDADES
-function showPopup(msg) {
+function showPopup(msg, type = 'success') {
   const popup = document.getElementById('popup');
   popup.textContent = msg;
-  popup.classList.add('show');
-  setTimeout(() => popup.classList.remove('show'), 2000);
+  popup.className = 'popup show';
+  if (type === 'error') popup.style.backgroundColor = '#dc3545';
+  else popup.style.backgroundColor = '#198754';
+  setTimeout(() => popup.classList.remove('show'), 3000);
 }
 
 function getColorPuesto(puesto) {
@@ -63,7 +91,7 @@ function getColorPuesto(puesto) {
   
   if (CONFIG.coloresFijosPuestos[puesto]) {
     STATE.colorPuestos[puesto] = CONFIG.coloresFijosPuestos[puesto];
-    save('colorPuestos', STATE.colorPuestos);
+    saveToStorage('colorPuestos', STATE.colorPuestos);
     return STATE.colorPuestos[puesto];
   }
   
@@ -76,27 +104,50 @@ function getColorPuesto(puesto) {
       color = '#000000';
     }
     STATE.colorPuestos[puesto] = color;
-    save('colorPuestos', STATE.colorPuestos);
+    saveToStorage('colorPuestos', STATE.colorPuestos);
     return color;
   }
   
   STATE.colorPuestos[puesto] = '#CCCCCC';
-  save('colorPuestos', STATE.colorPuestos);
+  saveToStorage('colorPuestos', STATE.colorPuestos);
   return '#CCCCCC';
+}
+
+// VALIDACIONES
+function validarPuesto(num) {
+  if (!num || num.trim() === '') {
+    showPopup('⚠️ Ingresa un número de puesto', 'error');
+    return false;
+  }
+  
+  const numero = num.trim();
+  if (!/^\d+$/.test(numero)) {
+    showPopup('⚠️ Solo números permitidos', 'error');
+    return false;
+  }
+  
+  if (STATE.puestos.includes(numero)) {
+    showPopup('⚠️ Puesto ya existe', 'error');
+    return false;
+  }
+  
+  return true;
 }
 
 // RENDER
 function renderPuestos() {
   const container = document.getElementById('puestos-container');
+  if (!container) return;
+  
   container.innerHTML = STATE.puestos.map(p => `
     <div class="puesto" style="border-left: 5px solid ${getColorPuesto(p)}">
       <div class="puesto-header">
         <span>Puesto ${p}</span>
-        <button class="quitar-puesto-btn" data-puesto="${p}">X</button>
+        <button class="quitar-puesto-btn" data-puesto="${p}" aria-label="Quitar puesto ${p}">X</button>
       </div>
       <div class="tarea-buttons">
         ${CONFIG.ordenTareas.map(t => 
-          `<button class="add-tarea-btn ${CONFIG.abrev[t]}" data-puesto="${p}" data-tarea="${t}">${CONFIG.abrev[t]}</button>`
+          `<button class="add-tarea-btn ${CONFIG.abrev[t]}" data-puesto="${p}" data-tarea="${t}" aria-label="Añadir ${t}">${CONFIG.abrev[t]}</button>`
         ).join('')}
       </div>
     </div>
@@ -104,6 +155,9 @@ function renderPuestos() {
 }
 
 function renderDashboard() {
+  const container = document.getElementById('dashboard-container');
+  if (!container) return;
+  
   const logHoy = STATE.log.filter(l => l.fecha === STATE.jornadaActual);
   const contador = logHoy.reduce((acc, l) => {
     acc[l.puesto] = acc[l.puesto] || { total: 0, ...CONFIG.ordenTareas.reduce((a, t) => ({ ...a, [t]: 0 }), {}) };
@@ -114,7 +168,7 @@ function renderDashboard() {
 
   const puestos = Object.keys(contador).sort((a, b) => contador[b].total - contador[a].total);
   if (puestos.length === 0) {
-    document.getElementById('dashboard-container').innerHTML = '<p>No hay registros para hoy.</p>';
+    container.innerHTML = '<p>No hay registros para hoy.</p>';
     return;
   }
   
@@ -127,15 +181,18 @@ function renderDashboard() {
       `<td>${contador[p].total}</td></tr>`;
   });
   
-  document.getElementById('dashboard-container').innerHTML = html + '</tbody></table>';
+  container.innerHTML = html + '</tbody></table>';
 }
 
 function renderLog() {
+  const container = document.getElementById('log-container');
+  if (!container) return;
+  
   const logHoy = STATE.log.filter(l => l.fecha === STATE.jornadaActual).slice(0, 50);
-  document.getElementById('log-container').innerHTML = logHoy.map(l => `
+  container.innerHTML = logHoy.map(l => `
     <div class="log-entry">
       <span><strong style="color:${getColorPuesto(l.puesto)};">Puesto ${l.puesto}</strong> | ${l.hora} | ${CONFIG.abrev[l.tarea]}</span>
-      <button class="eliminar-log-btn" data-id="${l.id}"></button>
+      <button class="eliminar-log-btn" data-id="${l.id}" aria-label="Eliminar registro">🗑️</button>
     </div>
   `).join('');
 }
@@ -148,153 +205,165 @@ function renderAll() {
 
 // HANDLERS
 function addPuesto() {
-  console.log('addPuesto called');
   const input = document.getElementById('nuevo-puesto-input');
+  if (!input) return;
+  
   const num = input.value.trim();
-  if (num && !STATE.puestos.includes(num)) {
-    STATE.puestos.push(num);
-    STATE.puestos.sort((a, b) => parseInt(a) - parseInt(b));
-    save('puestos', STATE.puestos);
+  if (!validarPuesto(num)) return;
+  
+  STATE.puestos.push(num);
+  STATE.puestos.sort((a, b) => parseInt(a) - parseInt(b));
+  
+  if (saveToStorage('puestos', STATE.puestos)) {
     renderAll();
-    showPopup('Puesto añadido');
+    showPopup('✓ Puesto añadido');
+    input.value = '';
   }
-  input.value = '';
 }
 
 function addTarea(puesto, tarea) {
-  console.log('addTarea called', puesto, tarea);
   const now = new Date();
-  STATE.log.unshift({
+  const newLog = {
     id: Date.now(),
     puesto,
     tarea,
     fecha: STATE.jornadaActual,
     hora: now.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
-  });
-  save('registroTareas', STATE.log);
-  renderDashboard();
-  renderLog();
-  showPopup('Registro añadido');
+  };
+  
+  STATE.log.unshift(newLog);
+  
+  if (saveToStorage('registroTareas', STATE.log)) {
+    renderDashboard();
+    renderLog();
+    showPopup('✓ Registro añadido');
+  } else {
+    STATE.log.shift(); // Revertir si falla
+  }
 }
 
 function quitarPuesto(puesto) {
-  if (confirm(`¿Seguro que quieres quitar el puesto ${puesto}?`)) {
-    STATE.puestos = STATE.puestos.filter(p => p !== puesto);
-    save('puestos', STATE.puestos);
+  if (!confirm(`¿Seguro que quieres quitar el puesto ${puesto}?`)) return;
+  
+  STATE.puestos = STATE.puestos.filter(p => p !== puesto);
+  
+  if (saveToStorage('puestos', STATE.puestos)) {
     renderAll();
+    showPopup('✓ Puesto eliminado');
   }
 }
 
 function eliminarLog(id) {
   const logId = parseInt(id);
   
-  // Eliminar de STATE.log (registro de hoy)
   const logHoyInicial = STATE.log.length;
   STATE.log = STATE.log.filter(l => l.id !== logId);
+  
   if (logHoyInicial > STATE.log.length) {
-    save('registroTareas', STATE.log);
-    renderDashboard();
-    renderLog();
+    if (saveToStorage('registroTareas', STATE.log)) {
+      renderDashboard();
+      renderLog();
+      showPopup('✓ Registro eliminado');
+    }
     return;
   }
 
-  // Si no se encontró en el log de hoy, buscar en el historial completo
-  let historial = JSON.parse(localStorage.getItem('historialCompleto') || '[]');
+  let historial = loadFromStorage('historialCompleto', []);
   const historialInicial = historial.length;
   historial = historial.filter(l => l.id !== logId);
 
   if (historialInicial > historial.length) {
-    save('historialCompleto', historial);
-    // Re-renderizar la vista de historial si es la activa
-    if (STATE.vistaActual === 'historial') {
-      renderHistorialCompleto();
+    if (saveToStorage('historialCompleto', historial)) {
+      if (STATE.vistaActual === 'historial') {
+        renderHistorialCompleto();
+      }
+      showPopup('✓ Registro eliminado del historial');
     }
   }
 }
 
 function clearToday() {
-  if (confirm('¿Seguro que quieres borrar todos los registros de hoy?')) {
-    STATE.log = STATE.log.filter(l => l.fecha !== STATE.jornadaActual);
-    save('registroTareas', STATE.log);
+  if (!confirm('¿Seguro que quieres borrar todos los registros de hoy?')) return;
+  
+  STATE.log = STATE.log.filter(l => l.fecha !== STATE.jornadaActual);
+  
+  if (saveToStorage('registroTareas', STATE.log)) {
     renderAll();
+    showPopup('✓ Registros de hoy eliminados');
   }
 }
 
 function resetColors() {
-  if (confirm('¿Resetear todos los colores?')) {
-    STATE.colorPuestos = {};
-    save('colorPuestos', STATE.colorPuestos);
+  if (!confirm('¿Resetear todos los colores?')) return;
+  
+  STATE.colorPuestos = {};
+  
+  if (saveToStorage('colorPuestos', STATE.colorPuestos)) {
     renderAll();
+    showPopup('✓ Colores reseteados');
   }
 }
 
 function toggleTheme() {
-  document.body.classList.toggle('dark-mode');
-  const isDark = document.body.classList.contains('dark-mode');
-  document.getElementById('theme-toggle').textContent = isDark ? '☀️' : '🌙';
-  localStorage.setItem('theme', isDark ? 'dark-mode' : '');
+  try {
+    document.body.classList.toggle('dark-mode');
+    const isDark = document.body.classList.contains('dark-mode');
+    const btn = document.getElementById('theme-toggle');
+    if (btn) btn.textContent = isDark ? '☀️' : '🌙';
+    localStorage.setItem('theme', isDark ? 'dark-mode' : '');
+  } catch (e) {
+    console.error('Error cambiando tema:', e);
+  }
 }
 
 function cambiarVista(vista) {
-  console.log('Cambiando a vista:', vista);
   STATE.vistaActual = vista;
   
-  // Ocultar todas las vistas
   document.querySelectorAll('.vista-container').forEach(v => v.classList.remove('active'));
   document.querySelectorAll('.modo-toggle button').forEach(b => b.classList.remove('active'));
   
-  // Mostrar vista seleccionada
   const vistaEl = document.getElementById(`vista-${vista}`);
   if (vistaEl) vistaEl.classList.add('active');
   
   const boton = document.querySelector(`[data-vista="${vista}"]`);
   if (boton) boton.classList.add('active');
   
-  // Renderizar contenido según vista
   if (vista === 'historial') {
-    // Por defecto, mostrar la primera sub-pestaña ('completo')
     cambiarSubVistaHistorial('completo');
   }
-  if (vista === 'graficas') renderGraficas('daily');
+  if (vista === 'horas') {
+    renderDistribucionHoras('hoy');
+  }
+  if (vista === 'graficas') {
+    renderGraficas('daily');
+  }
 }
 
 function cambiarSubVistaHistorial(subVista) {
-  // Ocultar todos los contenidos de las sub-pestañas de historial
-  document.getElementById('hist-completo').style.display = 'none';
-  document.getElementById('hist-compact').style.display = 'none';
-
-  // Quitar clase 'active' de todos los botones de sub-pestañas
+  const completo = document.getElementById('hist-completo');
+  const compact = document.getElementById('hist-compact');
+  
+  if (completo) completo.style.display = 'none';
+  if (compact) compact.style.display = 'none';
+  
   document.querySelectorAll('.hist-tabs button').forEach(b => b.classList.remove('active'));
-
-  // Mostrar el contenido y activar el botón de la sub-pestaña seleccionada
+  
   const subVistaEl = document.getElementById(`hist-${subVista}`);
-  if (subVistaEl) {
-    subVistaEl.style.display = 'block';
-  }
+  if (subVistaEl) subVistaEl.style.display = 'block';
   
   const botonSubVista = document.querySelector(`.hist-tabs button[data-sub="${subVista}"]`);
-  if (botonSubVista) {
-    botonSubVista.classList.add('active');
-  }
-
-  // Renderizar el contenido específico de la sub-pestaña
+  if (botonSubVista) botonSubVista.classList.add('active');
+  
   if (subVista === 'completo') {
     renderHistorialCompleto();
-  } else if (subVista === 'compact') {
-    // Activar el filtro 'hoy' por defecto
-    document.querySelectorAll('.horas-filtros button').forEach(b => b.classList.remove('active'));
-    const hoyButton = document.querySelector('.horas-filtros button[data-rango="hoy"]');
-    if (hoyButton) {
-      hoyButton.classList.add('active');
-    }
-    // Por defecto, renderizar con el rango 'hoy'
-    renderDistribucionHoras('hoy');
   }
 }
 
 function renderHistorialCompleto() {
   const cont = document.getElementById('hist-completo');
-  const historial = JSON.parse(localStorage.getItem('historialCompleto') || '[]');
+  if (!cont) return;
+  
+  const historial = loadFromStorage('historialCompleto', []);
   const porFecha = historial.reduce((acc, l) => {
     if (!acc[l.fecha]) acc[l.fecha] = [];
     acc[l.fecha].push(l);
@@ -319,7 +388,7 @@ function renderHistorialCompleto() {
         ${porFecha[f].map(l => `
           <div class="log-entry">
             <span><strong style="color:${getColorPuesto(l.puesto)};">Puesto ${l.puesto}</strong> - ${l.hora} - ${CONFIG.abrev[l.tarea]}</span>
-            <button class="eliminar-log-btn" data-id="${l.id}"></button>
+            <button class="eliminar-log-btn" data-id="${l.id}" aria-label="Eliminar registro">🗑️</button>
           </div>
         `).join('')}
       </div>
@@ -342,6 +411,8 @@ function parseDdMmYyyy(dateString) {
 
 function renderDistribucionHoras(rango) {
   const cont = document.getElementById('horas-container');
+  if (!cont) return;
+  
   const hoy = new Date();
   let start, end;
 
@@ -362,7 +433,7 @@ function renderDistribucionHoras(rango) {
     end = yyyyMmDd(endDate);
   }
 
-  const historial = JSON.parse(localStorage.getItem('historialCompleto') || '[]');
+  const historial = loadFromStorage('historialCompleto', []);
   const logCompleto = [...historial, ...STATE.log];
   const logFiltrado = logCompleto.filter(l => {
     const logDate = parseDdMmYyyy(l.fecha);
@@ -407,7 +478,6 @@ function renderDistribucionHoras(rango) {
   cont.innerHTML = html;
 }
 
-
 function renderGraficas(periodo) {
   if (STATE.chartInstance) {
     STATE.chartInstance.destroy();
@@ -422,7 +492,7 @@ function renderGraficas(periodo) {
   const fechaInicioStr = yyyyMmDd(fechaInicio);
   const hoyStr = yyyyMmDd(new Date());
   
-  const historial = JSON.parse(localStorage.getItem('historialCompleto') || '[]');
+  const historial = loadFromStorage('historialCompleto', []);
   const logCompleto = [...historial, ...STATE.log];
   
   const logParaGraficar = periodo === 'daily' 
@@ -449,8 +519,10 @@ function renderGraficas(periodo) {
     backgroundColor: CONFIG.coloresTareas[t],
   }));
   
-  const ctx = document.getElementById('grafico-puestos').getContext('2d');
-  STATE.chartInstance = new Chart(ctx, {
+  const ctx = document.getElementById('grafico-puestos');
+  if (!ctx) return;
+  
+  STATE.chartInstance = new Chart(ctx.getContext('2d'), {
     type: 'bar',
     data: { labels: puestos.map(p => `Puesto ${p}`), datasets },
     options: {
@@ -465,165 +537,19 @@ function finalizarJornada() {
   if (!confirm('¿Finalizar jornada y guardar en historial?')) return;
   
   const logHoy = STATE.log.filter(l => l.fecha === STATE.jornadaActual);
+  
   if (logHoy.length === 0) {
-    alert('No hay registros.');
+    showPopup('⚠️ No hay registros para finalizar', 'error');
     return;
   }
   
-  let historial = JSON.parse(localStorage.getItem('historialCompleto') || '[]');
+  let historial = loadFromStorage('historialCompleto', []);
   historial.push(...logHoy);
-  save('historialCompleto', historial);
+  
+  if (!saveToStorage('historialCompleto', historial)) return;
   
   STATE.log = STATE.log.filter(l => l.fecha !== STATE.jornadaActual);
-  save('registroTareas', STATE.log);
+  
+  if (!saveToStorage('registroTareas', STATE.log)) return;
   
   const today = new Date();
-  const day = String(today.getDate()).padStart(2, '0');
-  const month = String(today.getMonth() + 1).padStart(2, '0'); // Months are 0-indexed
-  const year = today.getFullYear();
-  STATE.jornadaActual = `${day}-${month}-${year}`;
-  localStorage.setItem('jornadaActual', STATE.jornadaActual);
-  
-  renderAll();
-  alert('Jornada finalizada y guardada.');
-}
-
-// SETUP LISTENERS
-function setupListeners() {
-  console.log('Setting up listeners using event delegation...');
-
-  document.body.addEventListener('click', (e) => {
-    const target = e.target;
-
-    // Theme toggle
-    if (target.matches('#theme-toggle')) {
-      toggleTheme();
-      return;
-    }
-    
-    // Add puesto
-    if (target.matches('#add-puesto-btn')) {
-      addPuesto();
-      return;
-    }
-
-    // Clear today
-    if (target.matches('#clear-today-btn')) {
-      clearToday();
-      return;
-    }
-
-    // Reset colors
-    if (target.matches('#reset-colors-btn')) {
-      resetColors();
-      return;
-    }
-
-    // Finalizar jornada
-    if (target.matches('#finalizar-jornada-btn')) {
-      finalizarJornada();
-      return;
-    }
-
-    // Cambio de vista
-    const vistaBtn = target.closest('[data-vista]');
-    if (vistaBtn && target.closest('.modo-toggle')) {
-      cambiarVista(vistaBtn.dataset.vista);
-      return;
-    }
-
-    // Sub-pestañas de Historial
-    const subVistaBtn = target.closest('[data-sub]');
-    if (subVistaBtn && target.closest('.hist-tabs')) {
-      cambiarSubVistaHistorial(subVistaBtn.dataset.sub);
-      return;
-    }
-
-    // Filtros de horas
-    const rangoBtn = target.closest('[data-rango]');
-    if (rangoBtn && target.closest('.horas-filtros')) {
-      document.querySelectorAll('.horas-filtros button').forEach(b => b.classList.remove('active'));
-      rangoBtn.classList.add('active');
-      renderDistribucionHoras(rangoBtn.dataset.rango);
-      return;
-    }
-
-    // Filtros de gráficas
-    const periodoBtn = target.closest('[data-periodo]');
-    if (periodoBtn && target.closest('.filtros-graficas')) {
-      document.querySelectorAll('.filtros-graficas button').forEach(b => b.classList.remove('active'));
-      periodoBtn.classList.add('active');
-      renderGraficas(periodoBtn.dataset.periodo);
-      return;
-    }
-
-    // Tareas dinámicas
-    if (target.classList.contains('add-tarea-btn')) {
-      addTarea(target.dataset.puesto, target.dataset.tarea);
-      return;
-    }
-    
-    if (target.classList.contains('quitar-puesto-btn')) {
-      quitarPuesto(target.dataset.puesto);
-      return;
-    }
-    
-    if (target.classList.contains('eliminar-log-btn')) {
-      eliminarLog(target.dataset.id);
-      return;
-    }
-  });
-
-  // Listener para la tecla Enter en el input
-  const input = document.getElementById('nuevo-puesto-input');
-  if (input) {
-    input.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') {
-        addPuesto();
-      }
-    });
-  }
-
-  console.log('All listeners setup complete');
-}
-
-// INIT
-function init() {
-  console.log('Initializing app...');
-  
-  // Theme
-  if (localStorage.getItem('theme') === 'dark-mode') {
-    document.body.classList.add('dark-mode');
-    document.getElementById('theme-toggle').textContent = '☀️';
-  }
-  
-  // Jornada input
-  const jornadaInput = document.getElementById('jornada-minutos-input');
-  if (jornadaInput) {
-    jornadaInput.value = CONFIG.JORNADA_MINUTOS;
-    const display = document.getElementById('jornada-horas-display');
-    if (display) {
-      const h = Math.floor(CONFIG.JORNADA_MINUTOS / 60);
-      const m = CONFIG.JORNADA_MINUTOS % 60;
-      display.textContent = `(${h}h ${m}m)`;
-    }
-  }
-  
-  renderAll();
-  setupListeners();
-  
-  // Ocultar la pantalla de carga
-  const loadingScreen = document.getElementById('loading-screen');
-  if (loadingScreen) {
-    loadingScreen.style.display = 'none';
-  }
-
-  console.log('=== APP INITIALIZED ===');
-}
-
-// EJECUTAR
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', init);
-} else {
-  init();
-}
